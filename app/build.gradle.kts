@@ -24,8 +24,8 @@ android {
         applicationId = "com.wchung.qrshare"
         minSdk = 21
         targetSdk = 36
-        versionCode = 26
-        versionName = "1.1.3"
+        versionCode = 25
+        versionName = "1.1.2"
     }
 
     signingConfigs {
