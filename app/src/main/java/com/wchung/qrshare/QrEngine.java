@@ -164,7 +164,7 @@ public final class QrEngine {
             in.close();
         }
         if (bitmap == null) {
-            throw new NotFoundException("Not an image");
+            throw NotFoundException.getNotFoundInstance();
         }
         return decode(bitmap);
     }
