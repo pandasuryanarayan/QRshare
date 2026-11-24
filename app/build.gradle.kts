@@ -7,6 +7,10 @@ plugins {
 val keystorePath: String? = System.getenv("KEYSTORE_PATH")
 val hasKeystore: Boolean = keystorePath != null && file(keystorePath).exists()
 
+// A release built without the shared key cannot install over an existing app,
+// so CI fails loudly instead of shipping one.
+val requireSigning: Boolean = System.getenv("REQUIRE_SIGNING") == "true"
+
 android {
     namespace = "com.wchung.qrshare"
     compileSdk = 36
@@ -20,8 +24,8 @@ android {
         applicationId = "com.wchung.qrshare"
         minSdk = 21
         targetSdk = 36
-        versionCode = 25
-        versionName = "1.1.2"
+        versionCode = 26
+        versionName = "1.1.3"
     }
 
     signingConfigs {
@@ -86,6 +90,13 @@ android {
         abortOnError = false
         checkReleaseBuilds = false
     }
+}
+
+if (requireSigning && !hasKeystore) {
+    throw GradleException(
+        "REQUIRE_SIGNING is set but no keystore was found at KEYSTORE_PATH. " +
+            "Every release must be signed with the same key."
+    )
 }
 
 dependencies {

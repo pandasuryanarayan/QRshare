@@ -45,40 +45,39 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Prepare signing key
+      - name: Check signing secrets
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          SECRET_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          SECRET_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          SECRET_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          missing=""
+          [ -z "${KEYSTORE_BASE64:-}" ] && missing="$missing KEYSTORE_BASE64"
+          [ -z "${KEYSTORE_PASSWORD:-}" ] && missing="$missing KEYSTORE_PASSWORD"
+          [ -z "${KEY_ALIAS:-}" ] && missing="$missing KEY_ALIAS"
+          [ -z "${KEY_PASSWORD:-}" ] && missing="$missing KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            echo "::error::Add them under Settings > Secrets and variables > Actions. See README, 'Signed release builds'. A build signed with a different key cannot install over an existing one."
+            exit 1
+          fi
+          echo "All four signing secrets are present."
+
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STOREPASS: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
           mkdir -p "$RUNNER_TEMP/signing"
           KS="$RUNNER_TEMP/signing/release.keystore"
-          if [ -n "${KEYSTORE_BASE64:-}" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KS"
-            {
-              echo "KEYSTORE_PASSWORD=${SECRET_STORE_PASSWORD}"
-              echo "KEY_ALIAS=${SECRET_KEY_ALIAS:-qrshare}"
-              echo "KEY_PASSWORD=${SECRET_KEY_PASSWORD:-$SECRET_STORE_PASSWORD}"
-            } >> "$GITHUB_ENV"
-            echo "SIGNING_MODE=repository secret" >> "$GITHUB_ENV"
-          else
-            PASS="ci$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
-            keytool -genkeypair -keystore "$KS" -alias qrshare \
-              -keyalg RSA -keysize 4096 -validity 10000 \
-              -storepass "$PASS" -keypass "$PASS" \
-              -dname "CN=QRshare CI, O=QRshare, C=IN" > /dev/null 2>&1
-            {
-              echo "KEYSTORE_PASSWORD=$PASS"
-              echo "KEY_ALIAS=qrshare"
-              echo "KEY_PASSWORD=$PASS"
-            } >> "$GITHUB_ENV"
-            echo "SIGNING_MODE=generated per run" >> "$GITHUB_ENV"
-            echo "::warning::No KEYSTORE_BASE64 secret found. The APK is signed with a throwaway key generated for this run, so it cannot update an older install. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD for a stable signature."
-          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KS"
           chmod 600 "$KS"
           echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
+          echo "SIGNING_MODE=repository secret" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$KS" -storepass "$STOREPASS" 2>/dev/null \
+            | grep -E "Alias name|SHA256:" | head -4 || true
 
       - name: Unit tests
         run: |
@@ -93,6 +92,11 @@ jobs:
           fi
 
       - name: Assemble release (R8 full mode, resource shrinking, signed)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          REQUIRE_SIGNING: 'true'
         run: ./gradlew --no-daemon --stacktrace assembleRelease
 
       - name: Verify signature

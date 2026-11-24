@@ -3,7 +3,7 @@
 <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="QRshare: share and scan QR codes from the Android share sheet." />
 
 [![Build signed release APK](https://github.com/pandasuryanarayan/QRshare/actions/workflows/release.yml/badge.svg)](https://github.com/pandasuryanarayan/QRshare/actions/workflows/release.yml)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 </div>
 
@@ -73,7 +73,12 @@ Requires JDK 17+ and the Android SDK (compileSdk 36).
 
 ### Signed release builds
 
-CI signs the release APK from repository secrets, so no key ever lands in git:
+**The four secrets below are required.** The workflow fails without them rather
+than quietly signing with a fresh key: Android only accepts an update if the
+signature matches the installed copy, so a rotating key forces every user to
+uninstall before installing.
+
+Add them under *Settings → Secrets and variables → Actions → New repository secret*:
 
 | Secret | What it is |
 |---|---|
@@ -81,6 +86,9 @@ CI signs the release APK from repository secrets, so no key ever lands in git:
 | `KEYSTORE_PASSWORD` | keystore password |
 | `KEY_ALIAS` | key alias |
 | `KEY_PASSWORD` | key password |
+
+Once they are set, every build — local, push, or tag — is signed with the same
+key, and APKs install over each other as normal updates.
 
 Generate a key once and keep it safe — every future update must be signed with it:
 
@@ -110,4 +118,14 @@ The `release` build type runs the most aggressive pass available:
 
 ## License
 
-GPL-3.0, inherited from upstream. See [LICENSE](LICENSE).
+The code in this fork is released under the [MIT License](LICENSE).
+
+### Provenance note
+
+This project is a fork of [mrwm/QRshare](https://github.com/mrwm/QRshare), which
+is distributed under **GPL-3.0**. The application was substantially rewritten
+here, but it is still a derivative of that work, so redistributing it carries
+GPL-3.0 obligations for the inherited portions — an MIT grant on this repository
+does not by itself remove them. If you need the whole tree to be unambiguously
+MIT, ask the upstream author for permission (or a relicense), or keep the fork
+under GPL-3.0. This is a description of the situation, not legal advice.
