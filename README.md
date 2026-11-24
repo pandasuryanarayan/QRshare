@@ -1,88 +1,113 @@
 <div align="center">
 
-<img width="" src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="QRshare: Share QR code with android's share sheet." align="center">
+<img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="QRshare: share and scan QR codes from the Android share sheet." />
 
-[![GitHub stars](https://img.shields.io/github/stars/mrwm/QRshare?style=for-the-badge)](https://github.com/mrwm/QRshare/stargazers)
-[![GitHub downloads](https://img.shields.io/github/downloads/mrwm/QRshare/total.svg?style=for-the-badge)](https://github.com/mrwm/QRshare/releases/)
-[![GitHub latest release](https://img.shields.io/github/v/release/mrwm/QRshare?display_name=tag&style=for-the-badge)](https://github.com/mrwm/QRshare/releases/latest)
-
-<a href="https://www.buymeacoffee.com/mrwm" target="_blank" style="align: center">
-  <img src="https://www.buymeacoffee.com/assets/img/custom_images/white_img.png" alt="Buy Me A Coffee" style="height: 75; box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" >
-</a>
+[![Build signed release APK](https://github.com/pandasuryanarayan/QRshare/actions/workflows/release.yml/badge.svg)](https://github.com/pandasuryanarayan/QRshare/actions/workflows/release.yml)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 </div>
 
 ---
 
-### Download
-<a href="https://f-droid.org/en/packages/com.wchung.qrshare/">
-  <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get qrshare on FDroid"
-    height="75">
-</a>
-<a href="https://apt.izzysoft.de/fdroid/index/apk/com.wchung.qrshare">
-  <img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png"
-    alt="Get qrshare on IzzyDroid"
-    height="75">
-</a>
-<a href="https://play.google.com/store/apps/details?id=com.wchung.qrshare">
-  <img src="https://play.google.com/intl/en_us/badges/images/generic/en-play-badge.png"
-    alt="Get qrshare on Google Play"
-    height="75">
-</a>
-<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/mrwm/QRshare">
-  <img src="https://raw.githubusercontent.com/ImranR98/Obtainium/b1c8ac6f2ab08497189721a788a5763e28ff64cd/assets/graphics/badge_obtainium.png"
-    alt="Get it on Obtainium"
-    height="75">
-</a>
-<a href="https://github.com/mrwm/QRshare/releases/latest">
-  <img src="https://github.com/machiav3lli/oandbackupx/blob/034b226cea5c1b30eb4f6a6f313e4dadcbb0ece4/badge_github.png"
-    alt="Get qrshare on Github"
-    height="75">
-</a>
+An all-in-one, lightweight QR app for Android: **generate** codes and **read** them,
+with no ads, no analytics and no Google Play Services.
 
-### Features:
-- Dark and Light theme support
-- Landscape + Portrait mode support
-- Lightweight in size: Less than 1Mb in download + Bloat free!
-- No ads
-- Low memory usage: Will not spam the Recents screen (aka Overview)
+Forked from [mrwm/QRshare](https://github.com/mrwm/QRshare), which was a
+generate-only app. This fork adds the other half.
 
-<br>
+## What changed from upstream
 
-- Anti-feature:
-  - The lack of QR code scanning
+### Reading codes (the old "anti-feature")
 
-### Usage:
-- Opening the app:
-  - Open any app > Click share > Select QRshare in the share sheet
-  - Copy any text > Click the share icon on the android copy dialogue > Select QRshare in the share sheet
-  - Or open the app from the app launcher
-- Tap on the text box to edit or add text. The QR code will automatically update when the text changes
-- Press and hold on the image to bring up options to copy the image to clipboard, or share the QR code to another app
+- **Camera scanner** built on CameraX + ZXing — no ML Kit, so it still builds on F-Droid.
+- **Scan from an image**: decode a QR out of a screenshot or photo.
+- **Quick Settings tile** and a **launcher shortcut** that open the scanner directly.
+- After a scan you can open the result, copy it, or save a file out of it.
 
-<details><summary><h3>Use cases:</h3></summary>
+### Generating richer codes
 
-- Sharing links quickly.
-  - eg:
-    - Sharing app links for profiles: Instagram / Venmo / Whatsapp / Telegram / etc.
-    - Web pages
-- Sharing contacts
-  - Contact app > Share > QRshare
-- Sharing text files
-  - File manager > Share > QRshare
+- **Templates** that build correct payloads instead of raw text:
+  Wi-Fi, contact (vCard 3.0), **UPI payment**, calendar event (VEVENT), location,
+  email, SMS, phone, and 2FA (`otpauth://`).
+- **Selectable error correction** (L / M / Q / H) with automatic fallback.
 
-</details>
+### The 1 KB file limit is gone
 
-<details><summary><h3>WearOS:</h3></summary>
+The upstream code hardcoded `ErrorCorrectionLevel.H`, which caps a symbol at
+1,273 bytes, and its size guard only showed a Toast before handing oversized data
+to the encoder — the blank screen / ANR its own changelog warned about.
 
-- Not supported in master branch, but [a rudimentary draft can be found on the wear branch](https://github.com/mrwm/QRshare/tree/wear).
-- Will not be merged in master branch, as it includes Google Play Services.
+- ECC is now chosen from the payload size: **2,331 bytes at M**, **2,953 at L**.
+- The limit is enforced *before* encoding, with a live `bytes / capacity` readout.
+- Files are **deflated before Base64**, so small files fit where they never did.
+- Packed files use a `QRZ1|mime|codec|base64` envelope and can be unpacked again in-app.
 
-</details>
+### Fixes
 
-### Images
+- Text files keep their exact bytes — the old reader appended `\n` to every line and
+  ignored the charset.
+- The exported PNG is rendered at a fixed 1024 px instead of the screen width, so
+  dense symbols keep enough pixels per module on low-resolution phones.
+- `assert` guards (stripped in release builds) replaced with real null checks.
+- `StringUtil extends AppCompatActivity` replaced by plain helpers.
+- FileProvider narrowed from the whole cache directory to `cache/qrcodes/`.
+- Layout weights fixed (`0dp` + weight), stray launcher-icon background removed.
+- `ACTION_SEND_MULTIPLE` is supported: several shared items become pages.
 
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/0.png" style="width:250px;"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" style="width:250px;"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" style="width:250px;"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" style="width:250px;">
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" style="width:500px;"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" style="width:500px;">
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" style="width:1000px;">
+### Also new
+
+- History of everything generated or scanned (JSON, capped at 200 entries).
+- Save to gallery (Android 10+), copy image, share image.
+- Quick Settings tile, static app shortcuts, clipboard shortcut.
+- Unit tests for capacity maths, payload escaping and the file round-trip.
+
+## Build
+
+Requires JDK 17+ and the Android SDK (compileSdk 36).
+
+```bash
+./gradlew assembleDebug          # debug build
+./gradlew testReleaseUnitTest    # unit tests
+./gradlew assembleRelease        # needs signing env vars, see below
+```
+
+### Signed release builds
+
+CI signs the release APK from repository secrets, so no key ever lands in git:
+
+| Secret | What it is |
+|---|---|
+| `KEYSTORE_BASE64` | `base64 -w0 release.keystore` |
+| `KEYSTORE_PASSWORD` | keystore password |
+| `KEY_ALIAS` | key alias |
+| `KEY_PASSWORD` | key password |
+
+Generate a key once and keep it safe — every future update must be signed with it:
+
+```bash
+keytool -genkeypair -v -keystore release.keystore -alias qrshare \
+  -keyalg RSA -keysize 4096 -validity 10000 \
+  -storepass 'YOUR_PASSWORD' -keypass 'YOUR_PASSWORD' \
+  -dname "CN=QRshare, O=Personal, C=IN"
+base64 -w0 release.keystore   # paste into the KEYSTORE_BASE64 secret
+```
+
+Locally:
+
+```bash
+KEYSTORE_PATH=release.keystore KEYSTORE_PASSWORD=... KEY_ALIAS=qrshare \
+KEY_PASSWORD=... ./gradlew assembleRelease
+```
+
+## Release optimisation
+
+The `release` build type runs the most aggressive pass available:
+
+- R8 full mode (`android.enableR8.fullMode=true`)
+- `isMinifyEnabled` + `isShrinkResources` + `isCrunchPngs`
+- `proguard-android-optimize.txt` plus app rules
+- v1 + v2 + v3 APK signatures
+
+## License
+
+GPL-3.0, inherited from upstream. See [LICENSE](LICENSE).

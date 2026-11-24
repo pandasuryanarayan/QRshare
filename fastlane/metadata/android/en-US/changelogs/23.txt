@@ -1,0 +1,8 @@
+* Built-in QR scanner (camera + image import), no Play Services
+* Templates: Wi-Fi, contact, UPI payment, event, location, email, SMS, phone, 2FA
+* Error correction is now selectable, with automatic fallback — up to 2.3x more data
+* Files are compressed before encoding and can be saved back out
+* Save to gallery, copy image, share image
+* History of everything you generated or scanned
+* Quick Settings tile and launcher shortcuts
+* Multi-item share is supported

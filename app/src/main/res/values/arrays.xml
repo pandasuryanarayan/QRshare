@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="fields_wifi">
+        <item>Network name (SSID)</item>
+        <item>Password</item>
+        <item>Security type (WPA / WEP / nopass)</item>
+        <item>Hidden network? (yes / no)</item>
+    </string-array>
+    <string-array name="fields_contact">
+        <item>Full name</item>
+        <item>Phone</item>
+        <item>Email</item>
+        <item>Organisation</item>
+    </string-array>
+    <string-array name="fields_upi">
+        <item>UPI ID (name@bank)</item>
+        <item>Payee name</item>
+        <item>Amount in rupees (blank for any)</item>
+        <item>Note</item>
+    </string-array>
+    <string-array name="fields_event">
+        <item>Title</item>
+        <item>Location</item>
+        <item>Start (yyyy-MM-dd HH:mm)</item>
+        <item>End (yyyy-MM-dd HH:mm)</item>
+    </string-array>
+    <string-array name="fields_geo">
+        <item>Latitude</item>
+        <item>Longitude</item>
+    </string-array>
+    <string-array name="fields_email">
+        <item>To</item>
+        <item>Subject</item>
+        <item>Body</item>
+    </string-array>
+    <string-array name="fields_sms">
+        <item>Phone number</item>
+        <item>Message</item>
+    </string-array>
+    <string-array name="fields_tel">
+        <item>Phone number</item>
+    </string-array>
+    <string-array name="fields_totp">
+        <item>Secret (base32)</item>
+        <item>Issuer</item>
+        <item>Account name</item>
+    </string-array>
+</resources>

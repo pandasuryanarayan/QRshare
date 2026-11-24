@@ -1,7 +1,14 @@
-A lightweight app to share links, contacts, and text through QR codes.
+An all-in-one, lightweight QR tool: generate codes and read them, with no ads, no
+tracking and no Play Services.
 
 <ul>
-<li>Share a link, contact, or text. Then select QRshare to generate a QR code.</li>
-<li>Modify shared text by editing in the text box.</li>
-<li>Tap and hold on the picture to copy the QR code to clipboard, edit the text, or share the QR code.</li>
+<li>Share a link, contact or text from any app and get a QR code instantly.</li>
+<li>Scan with the camera, or decode a QR code straight out of a screenshot.</li>
+<li>Templates for Wi-Fi, contacts (vCard), UPI payments, calendar events, locations,
+email, SMS, phone numbers and 2FA secrets.</li>
+<li>Choose the error-correction level, or let the app pick the strongest one that fits.</li>
+<li>Small files can travel inside a single code, compressed and recoverable.</li>
+<li>Save to the gallery, copy the image, or share it anywhere.</li>
+<li>History of every code you generated or scanned.</li>
+<li>Quick Settings tile and launcher shortcuts for one-tap scanning.</li>
 </ul>

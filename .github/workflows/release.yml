@@ -1,0 +1,128 @@
+name: Build signed release APK
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Assemble optimised, signed release
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          SECRET_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SECRET_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SECRET_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/signing"
+          KS="$RUNNER_TEMP/signing/release.keystore"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KS"
+            {
+              echo "KEYSTORE_PASSWORD=${SECRET_STORE_PASSWORD}"
+              echo "KEY_ALIAS=${SECRET_KEY_ALIAS:-qrshare}"
+              echo "KEY_PASSWORD=${SECRET_KEY_PASSWORD:-$SECRET_STORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+            echo "SIGNING_MODE=repository secret" >> "$GITHUB_ENV"
+          else
+            PASS="ci$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
+            keytool -genkeypair -keystore "$KS" -alias qrshare \
+              -keyalg RSA -keysize 4096 -validity 10000 \
+              -storepass "$PASS" -keypass "$PASS" \
+              -dname "CN=QRshare CI, O=QRshare, C=IN" > /dev/null 2>&1
+            {
+              echo "KEYSTORE_PASSWORD=$PASS"
+              echo "KEY_ALIAS=qrshare"
+              echo "KEY_PASSWORD=$PASS"
+            } >> "$GITHUB_ENV"
+            echo "SIGNING_MODE=generated per run" >> "$GITHUB_ENV"
+            echo "::warning::No KEYSTORE_BASE64 secret found. The APK is signed with a throwaway key generated for this run, so it cannot update an older install. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD for a stable signature."
+          fi
+          chmod 600 "$KS"
+          echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon --stacktrace testReleaseUnitTest
+
+      - name: Assemble release (R8 full mode, resource shrinking, signed)
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Verify signature
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          ls -lh "$APK"
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | tail -1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          {
+            echo "### QRshare release build"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| APK size | $(du -h "$APK" | cut -f1) |"
+            echo "| Version | $(grep -m1 'versionName' app/build.gradle.kts | cut -d'"' -f2) |"
+            echo "| R8 full mode | enabled |"
+            echo "| Resource shrinking | enabled |"
+            echo "| Signing key | ${SIGNING_MODE:-unknown} |"
+            echo "| Signature | $( "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | grep -m1 'SHA-256' | sed 's/^ *//' ) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: qrshare-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 90
+
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: qrshare-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true

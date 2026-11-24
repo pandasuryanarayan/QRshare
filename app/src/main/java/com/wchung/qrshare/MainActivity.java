@@ -1,369 +1,541 @@
 package com.wchung.qrshare;
 
-// android.*
-import android.app.assist.AssistContent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.StrictMode;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.transition.AutoTransition;
-import android.transition.TransitionManager;
-import android.util.DisplayMetrics;
-import android.util.TypedValue;
-import android.view.ContextMenu;
-import android.view.Gravity;
-import android.view.MenuInflater;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.FrameLayout;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
-// androidx.*
-import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
-import androidx.core.graphics.Insets;
-import androidx.core.graphics.drawable.RoundedBitmapDrawable;
-import androidx.core.graphics.drawable.RoundedBitmapDrawableFactory;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
-// java.*
-import java.io.ByteArrayOutputStream;
+import com.google.zxing.WriterException;
+
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-
-// Google material color
-//import com.google.android.material.color.DynamicColors;
-
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-    private Bitmap qr_bitmap;
-    private TextView tv;
-    private ImageView iv;
-    private File cacheFile;
-    private String stringForQRcode;
 
-    private TextView subtitleHint;
-    private AutoTransition autoTransition;
-    private ViewGroup rootView;
+    private static final String PREFS = "qrshare";
+    private static final String PREF_ECC = "ecc";
+    private static final long RENDER_DELAY_MS = 180L;
+    private static final long CACHE_MAX_AGE_MS = 60L * 60L * 1000L;
 
-    private int dp16;
-    private int dp2;
+    private EditText input;
+    private ImageView qrView;
+    private TextView budgetView;
+    private View pagerBar;
+    private TextView pageView;
 
-    public static float convertDpToPixel(float dp, @NonNull Context context){
-        return dp * ((float) context.getResources().getDisplayMetrics().densityDpi /
-                DisplayMetrics.DENSITY_DEFAULT);
-    }
+    private final List<String> pages = new ArrayList<>();
+    private int pageIndex;
+    private int eccIndex = QrCapacity.DEFAULT_ECC;
+    private Bitmap currentBitmap;
+    private String lastRecorded;
 
-    private static RoundedBitmapDrawable roundifyImage(@NonNull ImageView imageView, Bitmap bitmapImage, int cornerRadius, @NonNull Context context) {
-        RoundedBitmapDrawable dr =
-                RoundedBitmapDrawableFactory.create(imageView.getResources(), bitmapImage);
-        dr.setCornerRadius(convertDpToPixel(cornerRadius, context));
-        return dr;
-    }
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable renderTask = new Runnable() {
+        @Override
+        public void run() {
+            render();
+        }
+    };
 
-    private static void setViewMargins(View view, int left, int top, int right, int bottom) {
-        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-        );
-        view.setLayoutParams(layoutParams);
-        ViewGroup.MarginLayoutParams marginLayoutParams =
-                (ViewGroup.MarginLayoutParams) view.getLayoutParams();
-        marginLayoutParams.setMargins(left, top, right, bottom);
-        view.setLayoutParams(marginLayoutParams);
-    }
-
-    private void hideKeyboard(View view) {
-        InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.hideSoftInputFromWindow(view.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
-    }
-
+    private ActivityResultLauncher<Intent> scanLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
-        EdgeToEdge.enable(MainActivity.this);
         setContentView(R.layout.activity_main);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
 
-        // prep for android 15
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
-                    .detectUnsafeIntentLaunch()
-                    .build()
-            );
-        }
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
-        dp16 = (int) convertDpToPixel(16, MainActivity.this);
-        dp2 = (int) convertDpToPixel(2, MainActivity.this);
+        input = findViewById(R.id.qr_subtitle);
+        qrView = findViewById(R.id.image_view_qr);
+        budgetView = findViewById(R.id.tv_budget);
+        pagerBar = findViewById(R.id.pager_bar);
+        pageView = findViewById(R.id.tv_page);
 
-        // Define the cache file location
-        cacheFile = new File(getCacheDir(), "QR_image.jpg");
+        eccIndex = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getInt(PREF_ECC, QrCapacity.DEFAULT_ECC);
 
-        // Do something about intent captures
-        // Handles intent captures and returns the text values in a string
-        // The function will also need to handle onNewIntent() as well
-        stringForQRcode = new StringUtil().getStringFromIntent(MainActivity.this, getIntent());
+        scanLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        String text = result.getData().getStringExtra(ScanActivity.EXTRA_RESULT);
+                        if (text != null) {
+                            input.setText(text);
+                        }
+                    }
+                });
 
-        // Get the string type from the intent
-        String finalStringType = new StringUtil().getStringType(getIntent());
+        Button prev = findViewById(R.id.btn_prev);
+        Button next = findViewById(R.id.btn_next);
+        prev.setOnClickListener(v -> showPage(pageIndex - 1));
+        next.setOnClickListener(v -> showPage(pageIndex + 1));
 
-        // Convert the string to a QR code
-        qr_bitmap = new StringUtil().stringToQRcode(MainActivity.this, stringForQRcode);
-        // Create a function that takes a string and creates a QR code to cacheFile
-        //saveBitmapToCache(qr_bitmap);
+        qrView.setOnLongClickListener(this::showImageMenu);
 
-        // Set the image view to the QR code
-        iv = findViewById(R.id.image_view_qr);
-        iv.setImageDrawable(roundifyImage(iv, qr_bitmap, dp16/2, MainActivity.this));
-
-        // Make the image corners round
-        iv.setClipToOutline(true);
-
-        // Setup for the image frame
-        FrameLayout ifv = findViewById(R.id.image_frame);
-        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) ifv.getLayoutParams();
-
-        // Set the linear layout to the correct orientation using code instead of xml
-        int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
-        int screenHeight = Resources.getSystem().getDisplayMetrics().heightPixels;
-        LinearLayout screenOrientation = findViewById(R.id.main);
-        if (screenWidth > screenHeight) {
-            screenOrientation.setOrientation(LinearLayout.HORIZONTAL);
-            lp.setMargins(dp16*4, dp16, dp16*3, dp16);
-        } else {
-            screenOrientation.setOrientation(LinearLayout.VERTICAL);
-            lp.setMargins(dp16, dp16, dp16, dp16);
-        }
-
-        // Clear the focus when the image view is tapped. Just a pretty touch effect
-        iv.setOnClickListener(view -> tv.clearFocus());
-
-        // Open a menu when long pressing the image
-        MainActivity.this.registerForContextMenu(iv);
-
-        // Set the text view to the stringForQRcode
-        tv = findViewById(R.id.qr_subtitle);
-        tv.setText(stringForQRcode);
-        //Log.i("onCreate", "stringType: " + stringType);
-
-        // The wild mess to programmatically create a TextView :)
-        subtitleHint = new TextView(MainActivity.this);
-        subtitleHint.setId(View.generateViewId());
-
-        // Set the background color of the hint
-        TypedValue windowBackground = new TypedValue();
-        MainActivity.this.getTheme().resolveAttribute(
-                android.R.attr.windowBackground, windowBackground, true);
-        subtitleHint.setBackground(
-                ContextCompat.getDrawable(MainActivity.this, windowBackground.resourceId));
-
-        setViewMargins(subtitleHint, dp16, dp16, dp16, dp16);
-        subtitleHint.setGravity(Gravity.TOP | Gravity.START);
-        subtitleHint.setPadding(dp16-(dp2*3), dp16, dp16-(dp2*3), 0);
-
-        // Set the text of the hint
-        subtitleHint.setText(getString(R.string.qr_instructions));
-        subtitleHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-
-        // Update the QR code when the text is changed
-        tv.addTextChangedListener(new TextWatcher() {
-
-            public void afterTextChanged(Editable s) {
-                //Log.i("afterTextChanged", "string: " + s.toString());
-                stringForQRcode = s.toString();
-                qr_bitmap = new StringUtil().stringToQRcode(MainActivity.this, stringForQRcode); // crashes the app if null
-                iv.setImageDrawable(roundifyImage(iv, qr_bitmap, dp16/2, MainActivity.this));
-                subtitleHint.setText(finalStringType);
-
-            }
-
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                TransitionManager.beginDelayedTransition(rootView, autoTransition);
-                setViewMargins(subtitleHint, dp16, -dp16-dp2, dp16/2, dp16/2);
-                subtitleHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
             }
 
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-        });
-
-        // Animate layout change for the hint when the textbox is selected (or not)
-        tv.setOnFocusChangeListener((v, hasFocus) -> {
-            //Log.i("onFocusChange", "hasFocus: " + hasFocus);
-            TransitionManager.beginDelayedTransition(rootView, autoTransition);
-            if(hasFocus) {
-                subtitleHint.setText(getString(R.string.app_name));
-                setViewMargins(subtitleHint, dp16, -dp16-dp2, dp16/2, dp16/2);
-                subtitleHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-            } else {
-                hideKeyboard(tv);
-                if (tv.getText() == null || tv.getText().toString().isEmpty()) {
-                    subtitleHint.setText(getString(R.string.qr_instructions));
-                    setViewMargins(subtitleHint, dp16, dp16, dp16, dp16);
-                    subtitleHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-                }
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
             }
 
+            @Override
+            public void afterTextChanged(Editable s) {
+                handler.removeCallbacks(renderTask);
+                handler.postDelayed(renderTask, RENDER_DELAY_MS);
+            }
         });
 
-        // Get the root view and create a transition.
-        rootView = findViewById(R.id.frame_layout);
-        autoTransition = new AutoTransition();
-        autoTransition.setDuration(75); // 50 works too, but is slightly too fast to notice
-        rootView.addView(subtitleHint);
-
-        if (stringForQRcode != null) {
-            TransitionManager.beginDelayedTransition(rootView, autoTransition);
-            setViewMargins(subtitleHint, dp16, -dp16-dp2, dp16/2, dp16/2);
-            subtitleHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-            subtitleHint.setText(finalStringType);
-        }
-
+        cleanupCache();
+        handleIntent(getIntent());
     }
 
     @Override
     protected void onNewIntent(@NonNull Intent intent) {
         super.onNewIntent(intent);
-
-        // Grab the text from the new intent and update the textedit
-        stringForQRcode = new StringUtil().getStringFromIntent(this, intent);
-        tv.setText(stringForQRcode);
-
-        // Then update the QR code with the corresponding text
-        qr_bitmap = new StringUtil().stringToQRcode(MainActivity.this, stringForQRcode);
-        iv.setImageDrawable(roundifyImage(iv, qr_bitmap, dp16/2, MainActivity.this));
-
-        // Move the text type hint out of the way of the text if there's a given text
-        setViewMargins(subtitleHint, dp16, -dp16-dp2, dp16/2, dp16/2);
-        subtitleHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        if (tv.getText().toString().isEmpty()) {
-            // Don't move the text type hint if there's no text
-            setViewMargins(subtitleHint, dp16, dp16, dp16, dp16);
-            subtitleHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-            subtitleHint.setText(getString(R.string.qr_instructions));
-
-        }
+        setIntent(intent);
+        handleIntent(intent);
     }
 
     @Override
-    public void onCreateContextMenu(ContextMenu menu, View view,
-                                    ContextMenu.ContextMenuInfo menuInfo) {
-        super.onCreateContextMenu(menu, view, menuInfo);
-
-        //menu.setHeaderTitle("Context Menu");
-
-        MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.menu_list, menu);
-        if (new StringUtil().stringToQRcode(MainActivity.this, stringForQRcode) == null) {
-            menu.findItem(R.id.copy).setEnabled(false);
-            menu.findItem(R.id.share).setEnabled(false);
-        }
+    protected void onPause() {
+        super.onPause();
+        recordHistory();
     }
 
     @Override
-    public boolean onContextItemSelected(@NonNull MenuItem item) {
-        Uri uriForFile = null;
-        if (new StringUtil().stringToQRcode(MainActivity.this, stringForQRcode) != null) {
-            // Save the image to the cache
-            saveBitmapToCache(qr_bitmap);
-            uriForFile = FileProvider.getUriForFile(MainActivity.this,
-                    MainActivity.this.getPackageName() + ".provider", cacheFile);
+    protected void onDestroy() {
+        handler.removeCallbacks(renderTask);
+        super.onDestroy();
+    }
+
+    // ---------------------------------------------------------------- intents
+
+    private void handleIntent(Intent intent) {
+        if (intent == null) {
+            return;
         }
+        if (intent.getBooleanExtra("from_clipboard", false)) {
+            pasteFromClipboard();
+            return;
+        }
+        String action = intent.getAction();
+        boolean sharing = Intent.ACTION_SEND.equals(action)
+                || Intent.ACTION_SEND_MULTIPLE.equals(action);
+        if (!sharing) {
+            if (pages.isEmpty()) {
+                pages.add("");
+                pageIndex = 0;
+                updatePager();
+            }
+            return;
+        }
+        try {
+            List<IntentUtil.Item> items = IntentUtil.readShared(this, intent);
+            pages.clear();
+            for (IntentUtil.Item item : items) {
+                pages.add(item.text);
+            }
+            if (pages.isEmpty()) {
+                pages.add("");
+                toast(getString(R.string.unreadable_data));
+            } else if (pages.size() > 1) {
+                toast(getString(R.string.multiple_items_fmt, pages.size()));
+            }
+            pageIndex = 0;
+            applyPage();
+        } catch (IOException | SecurityException e) {
+            pages.clear();
+            pages.add("");
+            applyPage();
+            toast(getString(R.string.unreadable_data));
+        }
+    }
 
-        // Handle the menu item clicks
-        int itemId = item.getItemId();
-        if (itemId == R.id.copy) {
-            ClipboardManager clipboard =
-                    (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newUri(getContentResolver(), "Image", uriForFile);
-            clipboard.setPrimaryClip(clip);
-
-            Toast.makeText(MainActivity.this, R.string.menu_copy, Toast.LENGTH_SHORT).show();
-        } else if (itemId == R.id.edit) {
-            // Kinda funny, I used this menu option to test the animations for the text view.
-            // I didn't expect this that I would have a use for this menu item :)
-            tv.requestFocus();
-            //Toast.makeText(this, R.string.menu_edit, Toast.LENGTH_SHORT).show();
-        } else if (itemId == R.id.share) {
-            //Toast.makeText(this, R.string.menu_share, Toast.LENGTH_SHORT).show();
-            Intent sendIntent = new Intent();
-            sendIntent.setAction(Intent.ACTION_SEND);
-            sendIntent.putExtra(Intent.EXTRA_STREAM, uriForFile);
-            sendIntent.setType("image/jpg");
-            sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            Intent shareIntent = Intent.createChooser(sendIntent, "Share QR code using");
-            startActivity(shareIntent);
+    private void applyPage() {
+        updatePager();
+        String text = pages.isEmpty() ? "" : pages.get(pageIndex);
+        if (!text.contentEquals(input.getText())) {
+            input.setText(text);
         } else {
-            Toast.makeText(MainActivity.this, item.getTitle(), Toast.LENGTH_SHORT).show();
+            render();
         }
+    }
+
+    private void updatePager() {
+        if (pages.size() > 1) {
+            pagerBar.setVisibility(View.VISIBLE);
+            pageView.setText(getString(R.string.page_fmt, pageIndex + 1, pages.size()));
+        } else {
+            pagerBar.setVisibility(View.GONE);
+        }
+    }
+
+    private void showPage(int index) {
+        if (pages.size() <= 1) {
+            return;
+        }
+        int target = Math.max(0, Math.min(pages.size() - 1, index));
+        if (target == pageIndex) {
+            return;
+        }
+        pageIndex = target;
+        applyPage();
+    }
+
+    private void pasteFromClipboard() {
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null || !clipboard.hasPrimaryClip()) {
+            return;
+        }
+        ClipData clip = clipboard.getPrimaryClip();
+        if (clip == null || clip.getItemCount() == 0) {
+            return;
+        }
+        CharSequence text = clip.getItemAt(0).coerceToText(this);
+        if (text != null && text.length() > 0) {
+            pages.clear();
+            pages.add(text.toString());
+            pageIndex = 0;
+            applyPage();
+        }
+    }
+
+    // --------------------------------------------------------------- rendering
+
+    private void render() {
+        String text = input.getText().toString();
+        if (text.trim().isEmpty()) {
+            currentBitmap = null;
+            qrView.setImageDrawable(null);
+            budgetView.setText("");
+            return;
+        }
+
+        int length = QrCapacity.utf8Length(text);
+        int ecc = QrCapacity.pickEcc(eccIndex, length);
+
+        if (ecc < 0) {
+            currentBitmap = null;
+            qrView.setImageDrawable(null);
+            budgetView.setTextColor(ContextCompat.getColor(this, R.color.budget_over));
+            budgetView.setText(getString(R.string.data_too_large_fmt,
+                    IntentUtil.formatSize(length),
+                    IntentUtil.formatSize(QrCapacity.maxBytes(QrCapacity.ECC_L))));
+            return;
+        }
+
+        try {
+            currentBitmap = QrEngine.encode(text, ecc, Color.BLACK, Color.WHITE);
+            qrView.setImageBitmap(currentBitmap);
+            boolean tight = QrCapacity.isTight(length, ecc);
+            budgetView.setTextColor(ContextCompat.getColor(this,
+                    tight ? R.color.budget_warn : R.color.budget_ok));
+            budgetView.setText(getString(R.string.budget_fmt,
+                    IntentUtil.formatSize(length),
+                    IntentUtil.formatSize(QrCapacity.maxBytes(ecc)),
+                    getString(R.string.ecc_short, QrCapacity.name(ecc))));
+        } catch (WriterException e) {
+            currentBitmap = null;
+            qrView.setImageDrawable(null);
+            toast(getString(R.string.data_too_large));
+        }
+    }
+
+    private void recordHistory() {
+        String text = input.getText().toString();
+        if (text.trim().isEmpty() || text.equals(lastRecorded)) {
+            return;
+        }
+        lastRecorded = text;
+        HistoryStore.add(this, text, Payloads.schemeOf(text));
+    }
+
+    // ------------------------------------------------------------------- menu
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
 
-    private void saveBitmapToCache(@NonNull Bitmap bitmap_image) {
-        // Convert the bitmap to a byte array
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        bitmap_image.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream);
-        byte[] bytearray = byteArrayOutputStream.toByteArray();
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        int id;
+        switch (QrCapacity.clamp(eccIndex)) {
+            case QrCapacity.ECC_L:
+                id = R.id.ecc_l;
+                break;
+            case QrCapacity.ECC_Q:
+                id = R.id.ecc_q;
+                break;
+            case QrCapacity.ECC_H:
+                id = R.id.ecc_h;
+                break;
+            default:
+                id = R.id.ecc_m;
+                break;
+        }
+        MenuItem item = menu.findItem(id);
+        if (item != null) {
+            item.setChecked(true);
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
 
-        // Save the file to the cache
-        FileOutputStream fileOutputStream;
-        try {
-            fileOutputStream = new FileOutputStream(cacheFile);
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_scan) {
+            Intent intent = new Intent(this, ScanActivity.class);
+            intent.putExtra(ScanActivity.EXTRA_RETURN, true);
+            scanLauncher.launch(intent);
+            return true;
         }
-        try {
-            fileOutputStream.write(bytearray);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (id == R.id.action_templates) {
+            TemplateDialog.show(this, payload -> input.setText(payload));
+            return true;
         }
-        try {
-            fileOutputStream.flush();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (id == R.id.action_history) {
+            startActivity(new Intent(this, HistoryActivity.class));
+            return true;
         }
-        try {
-            fileOutputStream.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (id == R.id.action_save) {
+            saveImage();
+            return true;
+        }
+        if (id == R.id.action_share) {
+            shareImage();
+            return true;
+        }
+        if (id == R.id.action_copy) {
+            copyText();
+            return true;
+        }
+        if (id == R.id.ecc_l) {
+            setEcc(QrCapacity.ECC_L);
+            return true;
+        }
+        if (id == R.id.ecc_m) {
+            setEcc(QrCapacity.ECC_M);
+            return true;
+        }
+        if (id == R.id.ecc_q) {
+            setEcc(QrCapacity.ECC_Q);
+            return true;
+        }
+        if (id == R.id.ecc_h) {
+            setEcc(QrCapacity.ECC_H);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void setEcc(int index) {
+        eccIndex = QrCapacity.clamp(index);
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(PREF_ECC, eccIndex).apply();
+        invalidateOptionsMenu();
+        render();
+    }
+
+    private boolean showImageMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenuInflater().inflate(R.menu.menu_list, popup.getMenu());
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.copy) {
+                copyImage();
+                return true;
+            }
+            if (id == R.id.edit) {
+                input.requestFocus();
+                InputMethodManager imm =
+                        (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+                }
+                return true;
+            }
+            if (id == R.id.share) {
+                shareImage();
+                return true;
+            }
+            if (id == R.id.save) {
+                saveImage();
+                return true;
+            }
+            return false;
+        });
+        popup.show();
+        return true;
+    }
+
+    // ---------------------------------------------------------------- actions
+
+    private void copyText() {
+        String text = input.getText().toString();
+        if (text.trim().isEmpty()) {
+            toast(getString(R.string.nothing_to_share));
+            return;
+        }
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.app_name), text));
+            toast(getString(R.string.copied));
         }
     }
 
-    // ref: https://developer.android.com/guide/components/activities/recents
-    @Override
-    public void onProvideAssistContent(AssistContent outContent) {
-        super.onProvideAssistContent(outContent);
-        if (stringForQRcode == null) {
-            stringForQRcode = getString(R.string.no_data);
+    private void copyImage() {
+        if (currentBitmap == null) {
+            toast(getString(R.string.nothing_to_share));
+            return;
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            outContent.setWebUri(Uri.parse(stringForQRcode));
+        try {
+            Uri uri = uriForPng();
+            ClipboardManager clipboard =
+                    (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newUri(getContentResolver(),
+                        getString(R.string.app_name), uri));
+                toast(getString(R.string.copied));
+            }
+        } catch (IOException e) {
+            toast(getString(R.string.save_failed));
         }
+    }
+
+    private void shareImage() {
+        if (currentBitmap == null) {
+            toast(getString(R.string.nothing_to_share));
+            return;
+        }
+        try {
+            Uri uri = uriForPng();
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("image/png");
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(send, getString(R.string.menu_share)));
+            recordHistory();
+        } catch (IOException e) {
+            toast(getString(R.string.save_failed));
+        }
+    }
+
+    private void saveImage() {
+        if (currentBitmap == null) {
+            toast(getString(R.string.nothing_to_share));
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            toast(getString(R.string.save_unsupported));
+            return;
+        }
+        String name = "qrshare_" + System.currentTimeMillis() + ".png";
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+        values.put(MediaStore.Images.Media.RELATIVE_PATH,
+                Environment.DIRECTORY_PICTURES + "/QRshare");
+        OutputStream out = null;
+        try {
+            Uri uri = getContentResolver()
+                    .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) {
+                toast(getString(R.string.save_failed));
+                return;
+            }
+            out = getContentResolver().openOutputStream(uri);
+            if (out == null) {
+                toast(getString(R.string.save_failed));
+                return;
+            }
+            currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+            toast(getString(R.string.saved_to_gallery));
+            recordHistory();
+        } catch (IOException | SecurityException e) {
+            toast(getString(R.string.save_failed));
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException ignored) {
+                    // Already reported or irrelevant.
+                }
+            }
+        }
+    }
+
+    private Uri uriForPng() throws IOException {
+        File dir = new File(getCacheDir(), "qrcodes");
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IOException("Cannot create the export folder");
+        }
+        File file = new File(dir, "qr_" + System.currentTimeMillis() + ".png");
+        FileOutputStream out = new FileOutputStream(file);
+        try {
+            currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } finally {
+            out.close();
+        }
+        return FileProvider.getUriForFile(this, getPackageName() + ".provider", file);
+    }
+
+    private void cleanupCache() {
+        File dir = new File(getCacheDir(), "qrcodes");
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return;
+        }
+        long cutoff = System.currentTimeMillis() - CACHE_MAX_AGE_MS;
+        for (File file : files) {
+            if (file.lastModified() < cutoff && !file.delete()) {
+                // Best effort only.
+            }
+        }
+    }
+
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 }

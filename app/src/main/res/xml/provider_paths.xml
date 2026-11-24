@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!--
-        https://stackoverflow.com/questions/42516126/fileprovider-illegalargumentexception-failed-to-find-configured-root
-    -->
-    <cache-path name="cache_files" path="."/>
+    <!-- Only the QR export folder is shared, not the whole cache directory. -->
+    <cache-path
+        name="qr_export"
+        path="qrcodes/" />
 </paths>

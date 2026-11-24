@@ -1,21 +1,13 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ZXing has no reflection-based lookup in the paths we use, but its result
+# parsers are referenced by name in some builds; keep the public surface.
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep our activity entry points reachable from the manifest.
+-keep class com.wchung.qrshare.MainActivity { *; }
+-keep class com.wchung.qrshare.ScanActivity { *; }
+-keep class com.wchung.qrshare.HistoryActivity { *; }
+-keep class com.wchung.qrshare.QrTileService { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep annotations that R8 would otherwise strip from the manifest merge.
+-keepattributes *Annotation*, InnerClasses, Signature, SourceFile, LineNumberTable

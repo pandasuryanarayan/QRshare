@@ -38,3 +38,9 @@ app/release/output-metadata.json
 
 #scratch files
 ignorepls/
+
+# Never commit signing material
+*.jks
+*.keystore
+keystore.properties
+release.keystore

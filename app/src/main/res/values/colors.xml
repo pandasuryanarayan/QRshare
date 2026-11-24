@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- https://source.android.com/docs/core/display/material#material-library -->
-    <!--
-      example usage:
-        android:color="?attr/colorOnSecondary"
-      -->
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="colorPrimaryDark">#BFFAFAFA</color>
-    <color name="colorPrimary">#505050</color>
+    <color name="toolbar">#FF111827</color>
+    <color name="toolbar_night">#FF1F2937</color>
+    <color name="accent">#FF0F766E</color>
+    <color name="window_bg">#FFF3F4F6</color>
+    <color name="window_bg_night">#FF000000</color>
+    <color name="qr_card">#FFFFFFFF</color>
+    <color name="budget_ok">#FF6B7280</color>
+    <color name="budget_warn">#FFB45309</color>
+    <color name="budget_over">#FFB91C1C</color>
+    <color name="scrim">#66000000</color>
 </resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_scan"
+        android:shortcutId="scan"
+        android:shortcutLongLabel="@string/shortcut_scan_long"
+        android:shortcutShortLabel="@string/shortcut_scan">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.wchung.qrshare.ScanActivity"
+            android:targetPackage="com.wchung.qrshare" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_templates"
+        android:shortcutId="clipboard"
+        android:shortcutLongLabel="@string/shortcut_clipboard_long"
+        android:shortcutShortLabel="@string/shortcut_clipboard">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.wchung.qrshare.MainActivity"
+            android:targetPackage="com.wchung.qrshare">
+            <extra
+                android:name="from_clipboard"
+                android:value="true" />
+        </intent>
+    </shortcut>
+</shortcuts>

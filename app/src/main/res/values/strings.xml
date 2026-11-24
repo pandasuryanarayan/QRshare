@@ -1,19 +1,88 @@
 <resources>
-    <!-- Strings -->
     <string name="app_name" translatable="false">QR share</string>
     <string name="app_intent_filter_description">Share as QR</string>
     <string name="qr_code_description">QR share</string>
-    <string name="qr_instructions">Generate a QR code by sharing a link, contact, or text here, or by changing text here.\n\nPress and hold the QR code to bring up more options</string>
+    <string name="qr_instructions">Share a link, contact or text here, or type below.\n\nPress and hold the code for more options.</string>
     <string name="no_data" translatable="false">https://github.com/mrwm/QRshare</string>
+    <string name="empty_hint">Share something, scan a code, or start typing</string>
 
     <!-- Errors -->
-    <string name="unsupported_mimetype">Unsupported mimeType:\ </string>
-    <string name="data_too_large">Data too large</string>
-    <string name="multi_share_not_supported">Sharing multiple items with QR is not supported yet</string>
+    <string name="unsupported_mimetype">Unsupported mimeType: </string>
+    <string name="data_too_large">Data too large for one QR code</string>
+    <string name="data_too_large_fmt">%1$s is too large for a QR code (max %2$s at ECC L)</string>
+    <string name="unreadable_data">Unable to read that content</string>
 
     <!-- Menu -->
     <string name="menu_copy">Copy</string>
     <string name="menu_edit">Edit</string>
     <string name="menu_share">Share</string>
+    <string name="menu_save">Save to gallery</string>
+    <string name="menu_scan">Scan</string>
+    <string name="menu_templates">Templates</string>
+    <string name="menu_history">History</string>
+    <string name="menu_ecc">Error correction</string>
+    <string name="ecc_l">L — 7% (most data)</string>
+    <string name="ecc_m">M — 15% (default)</string>
+    <string name="ecc_q">Q — 25%</string>
+    <string name="ecc_h">H — 30% (most robust)</string>
+    <string name="ecc_short">ECC %1$s</string>
 
+    <!-- Budget -->
+    <string name="budget_fmt">%1$s / %2$s bytes · %3$s</string>
+    <string name="budget_over">Too large — trim %1$s bytes or lower error correction</string>
+    <string name="page_fmt">%1$d / %2$d</string>
+
+    <!-- Toasts -->
+    <string name="copied">Copied</string>
+    <string name="saved_to_gallery">Saved to gallery</string>
+    <string name="save_unsupported">Saving needs Android 10 or newer — use Share instead</string>
+    <string name="save_failed">Could not save the image</string>
+    <string name="file_saved">File saved</string>
+    <string name="file_save_failed">Could not save the file</string>
+    <string name="nothing_to_share">Nothing to share yet</string>
+    <string name="multiple_items_fmt">%1$d items shared</string>
+
+    <!-- Scan -->
+    <string name="scan_title">Scan a code</string>
+    <string name="scan_hint">Point the camera at a QR code</string>
+    <string name="scan_torch">Torch</string>
+    <string name="scan_gallery">From image</string>
+    <string name="scan_close">Close</string>
+    <string name="scan_permission_needed">Camera permission is needed to scan</string>
+    <string name="scan_no_code">No QR code found in that image</string>
+    <string name="scan_result_title">Code found</string>
+    <string name="scan_result_use">Use this text</string>
+    <string name="scan_result_open">Open</string>
+    <string name="scan_result_save_file">Save file</string>
+    <string name="torch_unavailable">Torch is not available</string>
+
+    <!-- History -->
+    <string name="history_title">History</string>
+    <string name="history_empty">Nothing here yet</string>
+    <string name="history_clear">Clear all</string>
+    <string name="history_delete">Delete</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="add">Add</string>
+
+    <!-- Templates -->
+    <string name="template_title">Insert a template</string>
+    <string name="template_wifi">Wi-Fi network</string>
+    <string name="template_contact">Contact (vCard)</string>
+    <string name="template_upi">UPI payment</string>
+    <string name="template_event">Calendar event</string>
+    <string name="template_geo">Location</string>
+    <string name="template_email">Email</string>
+    <string name="template_sms">SMS</string>
+    <string name="template_tel">Phone number</string>
+    <string name="template_totp">2FA (TOTP)</string>
+    <string name="template_fill">Fill in the fields</string>
+
+    <!-- Tile and shortcuts -->
+    <string name="tile_label">Scan QR</string>
+    <string name="shortcut_scan">Scan</string>
+    <string name="shortcut_scan_long">Scan a QR code</string>
+    <string name="shortcut_clipboard">Paste</string>
+    <string name="shortcut_clipboard_long">Make a QR from the clipboard</string>
 </resources>
