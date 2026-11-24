@@ -9,8 +9,15 @@
 
 ---
 
-An all-in-one, lightweight QR app for Android: **generate** codes and **read** them,
-with no ads, no analytics and no Google Play Services.
+**An all-in-one QR app for Android: generate codes and read them — no ads, no
+tracking, no Google Play Services, and under 1.3 MB.**
+
+Share a link from any app and get a code instantly. Scan with the camera, or
+decode a code straight out of a screenshot someone sent you. Build proper
+payloads instead of raw text — Wi-Fi, contacts, UPI payments, calendar events,
+locations, email, SMS, 2FA. Choose how much error correction you want, or let
+the app pick the strongest level that fits. Save it, copy it, share it, and find
+it again in history.
 
 Forked from [mrwm/QRshare](https://github.com/mrwm/QRshare), which was a
 generate-only app. This fork adds the other half.
