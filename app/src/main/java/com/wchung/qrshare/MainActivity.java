@@ -16,6 +16,7 @@ import android.os.Looper;
 import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -30,11 +31,13 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
+import com.google.zxing.NotFoundException;
 import com.google.zxing.WriterException;
 
 import java.io.File;
@@ -51,10 +54,20 @@ public class MainActivity extends AppCompatActivity {
     private static final long RENDER_DELAY_MS = 180L;
     private static final long CACHE_MAX_AGE_MS = 60L * 60L * 1000L;
 
+    private static final int[] SWATCH_COLORS = {
+            0xFF000000, 0xFF374151, 0xFFB91C1C, 0xFFB45309,
+            0xFF047857, 0xFF0F766E, 0xFF1D4ED8, 0xFF6D28D9,
+            0xFF9D174D, 0xFF111827, 0xFFFFFFFF, 0xFFF3F4F6
+    };
+    private static final int[] BACKGROUND_COLORS = {
+            0xFFFFFFFF, 0xFFFFFBF0, 0xFF000000, 0xFF111827
+    };
+
     private EditText input;
     private ImageView qrView;
-    private TextView placeholder;
     private TextView budgetView;
+    private TextView placeholder;
+    private Button clipboardButton;
     private View pagerBar;
     private TextView pageView;
 
@@ -65,14 +78,10 @@ public class MainActivity extends AppCompatActivity {
     private String lastRecorded;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable renderTask = new Runnable() {
-        @Override
-        public void run() {
-            render();
-        }
-    };
+    private final Runnable renderTask = this::render;
 
     private ActivityResultLauncher<Intent> scanLauncher;
+    private ActivityResultLauncher<String> logoLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,8 +93,9 @@ public class MainActivity extends AppCompatActivity {
 
         input = findViewById(R.id.qr_subtitle);
         qrView = findViewById(R.id.image_view_qr);
-        placeholder = findViewById(R.id.tv_placeholder);
         budgetView = findViewById(R.id.tv_budget);
+        placeholder = findViewById(R.id.tv_placeholder);
+        clipboardButton = findViewById(R.id.btn_clipboard);
         pagerBar = findViewById(R.id.pager_bar);
         pageView = findViewById(R.id.tv_page);
 
@@ -103,10 +113,25 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
+        logoLauncher = registerForActivityResult(
+                new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri == null) {
+                        return;
+                    }
+                    try {
+                        QrStyle.setLogo(this, uri);
+                        render();
+                    } catch (IOException e) {
+                        toast(getString(R.string.logo_failed));
+                    }
+                });
+
         Button prev = findViewById(R.id.btn_prev);
         Button next = findViewById(R.id.btn_next);
         prev.setOnClickListener(v -> showPage(pageIndex - 1));
         next.setOnClickListener(v -> showPage(pageIndex + 1));
+        clipboardButton.setOnClickListener(v -> pasteFromClipboard());
 
         qrView.setOnLongClickListener(this::showImageMenu);
 
@@ -167,9 +192,21 @@ public class MainActivity extends AppCompatActivity {
                 pages.add("");
                 pageIndex = 0;
                 updatePager();
+                render();
             }
             return;
         }
+
+        // A shared picture is almost always a screenshot of a code: read it,
+        // rather than stuffing the image itself into a symbol.
+        if (Intent.ACTION_SEND.equals(action) && intent.getType() != null
+                && intent.getType().startsWith("image/")) {
+            Uri uri = IntentUtil.streamOf(intent);
+            if (uri != null && decodeSharedImage(uri)) {
+                return;
+            }
+        }
+
         try {
             List<IntentUtil.Item> items = IntentUtil.readShared(this, intent);
             pages.clear();
@@ -189,6 +226,23 @@ public class MainActivity extends AppCompatActivity {
             pages.add("");
             applyPage();
             toast(getString(R.string.unreadable_data));
+        }
+    }
+
+    private boolean decodeSharedImage(Uri uri) {
+        try {
+            String decoded = QrEngine.decodeUri(this, uri);
+            pages.clear();
+            pages.add(decoded);
+            pageIndex = 0;
+            applyPage();
+            return true;
+        } catch (NotFoundException e) {
+            toast(getString(R.string.scan_no_code));
+            return false;
+        } catch (IOException | SecurityException e) {
+            toast(getString(R.string.unreadable_data));
+            return false;
         }
     }
 
@@ -224,28 +278,36 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void pasteFromClipboard() {
+        String text = readClipboard();
+        if (text == null) {
+            return;
+        }
+        pages.clear();
+        pages.add(text);
+        pageIndex = 0;
+        applyPage();
+    }
+
+    private String readClipboard() {
         ClipboardManager clipboard =
                 (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null || !clipboard.hasPrimaryClip()) {
-            return;
+            return null;
         }
         ClipData clip = clipboard.getPrimaryClip();
         if (clip == null || clip.getItemCount() == 0) {
-            return;
+            return null;
         }
         CharSequence text = clip.getItemAt(0).coerceToText(this);
-        if (text != null && text.length() > 0) {
-            pages.clear();
-            pages.add(text.toString());
-            pageIndex = 0;
-            applyPage();
-        }
+        return text == null || text.length() == 0 ? null : text.toString();
     }
 
     // --------------------------------------------------------------- rendering
 
     private void render() {
         String text = input.getText().toString();
+        updateClipboardOffer(text);
+
         if (text.trim().isEmpty()) {
             currentBitmap = null;
             qrView.setImageDrawable(null);
@@ -268,8 +330,20 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        Bitmap logo = QrStyle.logo(this);
+        if (logo != null) {
+            int withLogo = QrCapacity.pickEcc(QrCapacity.ECC_Q, length);
+            if (withLogo >= QrCapacity.ECC_Q) {
+                ecc = Math.max(ecc, withLogo);
+            } else {
+                // No headroom for a logo at this size; the code wins.
+                logo = null;
+            }
+        }
+
         try {
-            currentBitmap = QrEngine.encode(text, ecc, Color.BLACK, Color.WHITE);
+            currentBitmap = QrEngine.encode(text, ecc, QrStyle.foreground(this),
+                    QrStyle.background(this), logo);
             placeholder.setVisibility(View.GONE);
             qrView.setVisibility(View.VISIBLE);
             qrView.setImageBitmap(currentBitmap);
@@ -288,11 +362,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** Shows the hint inside the empty card and hides the image behind it. */
     private void showPlaceholder(int textRes) {
         placeholder.setText(textRes);
         placeholder.setVisibility(View.VISIBLE);
         qrView.setVisibility(View.GONE);
+    }
+
+    private void updateClipboardOffer(String text) {
+        boolean show = text.trim().isEmpty() && readClipboard() != null;
+        clipboardButton.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     private void recordHistory() {
@@ -302,6 +380,7 @@ public class MainActivity extends AppCompatActivity {
         }
         lastRecorded = text;
         HistoryStore.add(this, text, Payloads.schemeOf(text));
+        QrWidget.refresh(this);
     }
 
     // ------------------------------------------------------------------- menu
@@ -329,9 +408,17 @@ public class MainActivity extends AppCompatActivity {
                 id = R.id.ecc_m;
                 break;
         }
-        MenuItem item = menu.findItem(id);
-        if (item != null) {
-            item.setChecked(true);
+        MenuItem ecc = menu.findItem(id);
+        if (ecc != null) {
+            ecc.setChecked(true);
+        }
+        MenuItem use = menu.findItem(R.id.action_use);
+        if (use != null) {
+            String label = PayloadActions.label(this, input.getText().toString());
+            use.setVisible(label != null);
+            if (label != null) {
+                use.setTitle(label);
+            }
         }
         return super.onPrepareOptionsMenu(menu);
     }
@@ -347,6 +434,18 @@ public class MainActivity extends AppCompatActivity {
         }
         if (id == R.id.action_templates) {
             TemplateDialog.show(this, payload -> input.setText(payload));
+            return true;
+        }
+        if (id == R.id.action_use) {
+            PayloadActions.perform(this, input.getText().toString());
+            return true;
+        }
+        if (id == R.id.action_style) {
+            showStyleDialog();
+            return true;
+        }
+        if (id == R.id.action_batch) {
+            showBatchDialog();
             return true;
         }
         if (id == R.id.action_history) {
@@ -421,6 +520,143 @@ public class MainActivity extends AppCompatActivity {
         });
         popup.show();
         return true;
+    }
+
+    // ----------------------------------------------------------------- style
+
+    private void showStyleDialog() {
+        String[] items = {
+                getString(R.string.style_foreground),
+                getString(R.string.style_background),
+                QrStyle.hasLogo(this) ? getString(R.string.style_logo_change)
+                        : getString(R.string.style_logo_add)
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.style_title)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) {
+                        pickForeground();
+                    } else if (which == 1) {
+                        pickBackground();
+                    } else {
+                        pickLogo();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void pickForeground() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.style_foreground)
+                .setItems(R.array.swatch_names, (dialog, which) -> {
+                    applyColors(SWATCH_COLORS[which], QrStyle.background(this));
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void pickBackground() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.style_background)
+                .setItems(R.array.background_names, (dialog, which) -> {
+                    applyColors(QrStyle.foreground(this), BACKGROUND_COLORS[which]);
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void applyColors(int foreground, int background) {
+        QrStyle.setColors(this, foreground, background);
+        if (!QrEngine.hasEnoughContrast(foreground, background)) {
+            toast(getString(R.string.style_low_contrast));
+        }
+        render();
+    }
+
+    private void pickLogo() {
+        String[] items = {
+                getString(R.string.style_logo_add),
+                getString(R.string.style_logo_remove)
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.style_logo)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) {
+                        logoLauncher.launch("image/*");
+                    } else {
+                        QrStyle.clearLogo(this);
+                        render();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    // ----------------------------------------------------------------- batch
+
+    private void showBatchDialog() {
+        EditText box = new EditText(this);
+        box.setHint(R.string.batch_hint);
+        box.setGravity(Gravity.TOP | Gravity.START);
+        box.setMinLines(6);
+        int padding = (int) (getResources().getDisplayMetrics().density * 20 + 0.5f);
+        box.setPadding(padding, padding / 2, padding, 0);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.batch_title)
+                .setView(box)
+                .setPositiveButton(R.string.batch_generate, (dialog, which) -> {
+                    List<String> entries = new ArrayList<>();
+                    for (String line : box.getText().toString().split("\n")) {
+                        if (!line.trim().isEmpty() && entries.size() < BatchExport.MAX_ENTRIES) {
+                            entries.add(line.trim());
+                        }
+                    }
+                    if (!entries.isEmpty()) {
+                        exportBatch(entries);
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void exportBatch(List<String> entries) {
+        final int ecc = eccIndex;
+        final int foreground = QrStyle.foreground(this);
+        final int background = QrStyle.background(this);
+        final Bitmap logo = QrStyle.logo(this);
+        final Context context = getApplicationContext();
+
+        new Thread(() -> {
+            String message;
+            File file = null;
+            try {
+                BatchExport.Result result = BatchExport.export(context, entries, ecc,
+                        foreground, background, logo);
+                file = result.file;
+                message = getString(R.string.batch_done, result.written, result.skipped);
+            } catch (IOException e) {
+                message = getString(R.string.batch_failed);
+            }
+            final String finalMessage = message;
+            final File finalFile = file;
+            runOnUiThread(() -> {
+                toast(finalMessage);
+                if (finalFile != null) {
+                    shareFile(finalFile, "application/zip");
+                }
+            });
+        }).start();
+    }
+
+    private void shareFile(File file, String mime) {
+        Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".provider", file);
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType(mime);
+        send.putExtra(Intent.EXTRA_STREAM, uri);
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(Intent.createChooser(send, getString(R.string.menu_share)));
     }
 
     // ---------------------------------------------------------------- actions

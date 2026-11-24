@@ -15,6 +15,21 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_use"
+        android:title="@string/menu_use"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_style"
+        android:title="@string/menu_style"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_batch"
+        android:title="@string/menu_batch"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_history"
         android:title="@string/menu_history"
         app:showAsAction="never" />

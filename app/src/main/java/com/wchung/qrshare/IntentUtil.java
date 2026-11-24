@@ -84,7 +84,7 @@ public final class IntentUtil {
     }
 
     @SuppressWarnings("deprecation")
-    private static Uri streamOf(Intent intent) {
+    public static Uri streamOf(Intent intent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             return intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
         }

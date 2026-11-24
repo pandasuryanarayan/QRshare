@@ -17,7 +17,6 @@
         android:required="false" />
 
     <application
-        android:name=".App"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
@@ -69,6 +68,17 @@
             android:name=".HistoryActivity"
             android:exported="false"
             android:label="@string/history_title" />
+
+        <receiver
+            android:name=".QrWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
 
         <service
             android:name=".QrTileService"

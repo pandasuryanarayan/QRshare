@@ -61,6 +61,27 @@ public class PayloadsTest {
     }
 
     @Test
+    public void readsBackTheWifiFieldsItWrote() {
+        String payload = Payloads.wifi("My;Net", "pa:ss", "WPA", false);
+        assertEquals("My;Net", Payloads.wifiSsid(payload));
+        assertEquals("pa:ss", Payloads.wifiPassword(payload));
+    }
+
+    @Test
+    public void readsBackVcardFields() {
+        String card = Payloads.vcard("Asha Rao", "+919876543210", "asha@example.com", "Acme");
+        assertEquals("Asha Rao", Payloads.vcardField(card, "FN"));
+        assertEquals("+919876543210", Payloads.vcardField(card, "TEL"));
+        assertEquals("asha@example.com", Payloads.vcardField(card, "EMAIL"));
+    }
+
+    @Test
+    public void schemeOfRecognisesFilePayloads() {
+        assertEquals("file", Payloads.schemeOf("QRZ1|image/png|gz|AAAA"));
+        assertEquals("2fa", Payloads.schemeOf("otpauth://totp/x?secret=Y"));
+    }
+
+    @Test
     public void schemeOfClassifiesCommonPayloads() {
         assertEquals("wifi", Payloads.schemeOf(Payloads.wifi("a", "b", "WPA", false)));
         assertEquals("upi", Payloads.schemeOf(Payloads.upi("a@b", "", "", "")));

@@ -305,8 +305,12 @@ public class ScanActivity extends AppCompatActivity {
         if (IntentUtil.isFilePayload(text)) {
             builder.setNeutralButton(R.string.scan_result_save_file,
                     (dialog, which) -> saveFile(text));
-        } else if (isOpenable(text)) {
-            builder.setNeutralButton(R.string.scan_result_open, (dialog, which) -> open(text));
+        } else {
+            String action = PayloadActions.label(this, text);
+            if (action != null) {
+                builder.setNeutralButton(action,
+                        (dialog, which) -> PayloadActions.perform(this, text));
+            }
         }
 
         AlertDialog dialog = builder.create();
@@ -316,22 +320,6 @@ public class ScanActivity extends AppCompatActivity {
             }
         });
         dialog.show();
-    }
-
-    private boolean isOpenable(String text) {
-        String t = text.trim();
-        return t.startsWith("http://") || t.startsWith("https://") || t.startsWith("tel:")
-                || t.startsWith("mailto:") || t.startsWith("geo:") || t.startsWith("smsto:")
-                || t.startsWith("sms:") || t.startsWith("upi://");
-    }
-
-    private void open(String text) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(text.trim()));
-            startActivity(intent);
-        } catch (Exception e) {
-            toast(getString(R.string.unreadable_data));
-        }
     }
 
     private void copy(String text) {

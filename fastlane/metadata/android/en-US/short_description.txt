@@ -1,1 +1,1 @@
-Generate QR codes on share intent
+All-in-one QR: generate and scan codes, no ads, no Play Services.

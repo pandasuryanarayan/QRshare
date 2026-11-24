@@ -232,4 +232,71 @@ public final class Payloads {
         }
         return "text";
     }
+
+    /** Parses the fields of a WIFI: payload, undoing the delimiter escaping. */
+    static java.util.Map<String, String> parseWifi(String payload) {
+        java.util.Map<String, String> fields = new java.util.LinkedHashMap<>();
+        if (payload == null) {
+            return fields;
+        }
+        String body = payload.startsWith("WIFI:") ? payload.substring(5) : payload;
+        StringBuilder current = new StringBuilder();
+        java.util.List<String> tokens = new java.util.ArrayList<>();
+        boolean escaped = false;
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if (escaped) {
+                current.append(c);
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == ';') {
+                tokens.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+        for (String token : tokens) {
+            int separator = token.indexOf(':');
+            if (separator > 0) {
+                fields.put(token.substring(0, separator), token.substring(separator + 1));
+            }
+        }
+        return fields;
+    }
+
+    public static String wifiSsid(String payload) {
+        String ssid = parseWifi(payload).get("S");
+        return ssid == null ? "" : ssid;
+    }
+
+    public static String wifiPassword(String payload) {
+        String password = parseWifi(payload).get("P");
+        return password == null ? "" : password;
+    }
+
+    /** Reads one property out of a vCard payload, unescaping its value. */
+    public static String vcardField(String payload, String key) {
+        if (payload == null || key == null) {
+            return "";
+        }
+        String[] lines = payload.split("\r\n|\n|\r");
+        for (String line : lines) {
+            if (line.startsWith(key + ":") || line.startsWith(key + ";")) {
+                int separator = line.indexOf(':');
+                if (separator < 0) {
+                    return "";
+                }
+                return line.substring(separator + 1)
+                        .replace("\\n", "\n")
+                        .replace("\\,", ",")
+                        .replace("\\;", ";");
+            }
+        }
+        return "";
+    }
 }

@@ -5,11 +5,14 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -40,6 +43,37 @@ public class HistoryActivity extends AppCompatActivity {
         toolbar.setNavigationOnClickListener(v -> finish());
 
         render();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_history, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_clear) {
+            confirmClear();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void confirmClear() {
+        if (HistoryStore.load(this).isEmpty()) {
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.history_clear)
+                .setMessage(R.string.history_clear_confirm)
+                .setPositiveButton(R.string.history_clear, (dialog, which) -> {
+                    HistoryStore.clear(this);
+                    QrWidget.refresh(this);
+                    render();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     private void render() {
@@ -85,6 +119,7 @@ public class HistoryActivity extends AppCompatActivity {
                         ? entry.text.substring(0, 120) + "…" : entry.text)
                 .setPositiveButton(R.string.delete, (dialog, which) -> {
                     HistoryStore.remove(this, entry.text, entry.time);
+                    QrWidget.refresh(this);
                     render();
                 })
                 .setNegativeButton(R.string.cancel, null)

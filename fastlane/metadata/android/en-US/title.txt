@@ -1,1 +1,1 @@
-QRshare
+QR share — generate and scan

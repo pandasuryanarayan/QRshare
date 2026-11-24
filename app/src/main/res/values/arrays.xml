@@ -45,4 +45,24 @@
         <item>Issuer</item>
         <item>Account name</item>
     </string-array>
+    <string-array name="swatch_names">
+        <item>Black</item>
+        <item>Slate</item>
+        <item>Red</item>
+        <item>Amber</item>
+        <item>Emerald</item>
+        <item>Teal</item>
+        <item>Blue</item>
+        <item>Violet</item>
+        <item>Rose</item>
+        <item>Ink</item>
+        <item>White</item>
+        <item>Paper</item>
+    </string-array>
+    <string-array name="background_names">
+        <item>White</item>
+        <item>Cream</item>
+        <item>Black</item>
+        <item>Ink</item>
+    </string-array>
 </resources>
