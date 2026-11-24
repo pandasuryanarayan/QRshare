@@ -53,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText input;
     private ImageView qrView;
+    private TextView placeholder;
     private TextView budgetView;
     private View pagerBar;
     private TextView pageView;
@@ -83,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
 
         input = findViewById(R.id.qr_subtitle);
         qrView = findViewById(R.id.image_view_qr);
+        placeholder = findViewById(R.id.tv_placeholder);
         budgetView = findViewById(R.id.tv_budget);
         pagerBar = findViewById(R.id.pager_bar);
         pageView = findViewById(R.id.tv_page);
@@ -247,6 +249,7 @@ public class MainActivity extends AppCompatActivity {
         if (text.trim().isEmpty()) {
             currentBitmap = null;
             qrView.setImageDrawable(null);
+            showPlaceholder(R.string.qr_placeholder);
             budgetView.setText("");
             return;
         }
@@ -257,6 +260,7 @@ public class MainActivity extends AppCompatActivity {
         if (ecc < 0) {
             currentBitmap = null;
             qrView.setImageDrawable(null);
+            showPlaceholder(R.string.qr_placeholder_too_large);
             budgetView.setTextColor(ContextCompat.getColor(this, R.color.budget_over));
             budgetView.setText(getString(R.string.data_too_large_fmt,
                     IntentUtil.formatSize(length),
@@ -266,6 +270,8 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             currentBitmap = QrEngine.encode(text, ecc, Color.BLACK, Color.WHITE);
+            placeholder.setVisibility(View.GONE);
+            qrView.setVisibility(View.VISIBLE);
             qrView.setImageBitmap(currentBitmap);
             boolean tight = QrCapacity.isTight(length, ecc);
             budgetView.setTextColor(ContextCompat.getColor(this,
@@ -277,8 +283,16 @@ public class MainActivity extends AppCompatActivity {
         } catch (WriterException e) {
             currentBitmap = null;
             qrView.setImageDrawable(null);
+            showPlaceholder(R.string.qr_placeholder_too_large);
             toast(getString(R.string.data_too_large));
         }
+    }
+
+    /** Shows the hint inside the empty card and hides the image behind it. */
+    private void showPlaceholder(int textRes) {
+        placeholder.setText(textRes);
+        placeholder.setVisibility(View.VISIBLE);
+        qrView.setVisibility(View.GONE);
     }
 
     private void recordHistory() {

@@ -5,6 +5,8 @@
     <string name="qr_instructions">Share a link, contact or text here, or type below.\n\nPress and hold the code for more options.</string>
     <string name="no_data" translatable="false">https://github.com/mrwm/QRshare</string>
     <string name="empty_hint">Share something, scan a code, or start typing</string>
+    <string name="qr_placeholder">Enter details to see QR code here</string>
+    <string name="qr_placeholder_too_large">Too much data to show a QR code</string>
 
     <!-- Errors -->
     <string name="unsupported_mimetype">Unsupported mimeType: </string>

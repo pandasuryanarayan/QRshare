@@ -10,4 +10,5 @@
     <color name="budget_warn">#FFB45309</color>
     <color name="budget_over">#FFB91C1C</color>
     <color name="scrim">#66000000</color>
+    <color name="placeholder">#FF9CA3AF</color>
 </resources>
