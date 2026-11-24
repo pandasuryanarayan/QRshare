@@ -3,7 +3,7 @@
 <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="QRshare: share and scan QR codes from the Android share sheet." />
 
 [![Build signed release APK](https://github.com/pandasuryanarayan/QRshare/actions/workflows/release.yml/badge.svg)](https://github.com/pandasuryanarayan/QRshare/actions/workflows/release.yml)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 </div>
 
@@ -118,14 +118,15 @@ The `release` build type runs the most aggressive pass available:
 
 ## License
 
-The code in this fork is released under the [MIT License](LICENSE).
+[GNU General Public License v3.0](LICENSE).
 
-### Provenance note
+### Provenance
 
-This project is a fork of [mrwm/QRshare](https://github.com/mrwm/QRshare), which
-is distributed under **GPL-3.0**. The application was substantially rewritten
-here, but it is still a derivative of that work, so redistributing it carries
-GPL-3.0 obligations for the inherited portions — an MIT grant on this repository
-does not by itself remove them. If you need the whole tree to be unambiguously
-MIT, ask the upstream author for permission (or a relicense), or keep the fork
-under GPL-3.0. This is a description of the situation, not legal advice.
+This project is a fork of [mrwm/QRshare](https://github.com/mrwm/QRshare).
+Upstream is licensed under **Apache-2.0**, which is compatible with GPL-3.0, so
+licensing the combined work under GPL-3.0 is clean — no permission is needed
+from the upstream author and no conflict is created. Attribution to the original
+work is kept here and in the introduction above.
+
+If you redistribute a modified build, GPL-3.0 applies to the whole work, so the
+corresponding source must be made available.
