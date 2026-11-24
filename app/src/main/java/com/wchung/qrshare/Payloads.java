@@ -63,7 +63,13 @@ public final class Payloads {
     }
 
     public static String wifi(String ssid, String password, String security, boolean hidden) {
-        String type = nz(security).isEmpty() ? "WPA" : nz(security).toUpperCase(Locale.US);
+        String type = nz(security).isEmpty() ? "WPA" : nz(security);
+        if (!type.equalsIgnoreCase("nopass")) {
+            // WPA and WEP are upper case in the spec, "nopass" is lower case.
+            type = type.toUpperCase(Locale.US);
+        } else {
+            type = "nopass";
+        }
         StringBuilder sb = new StringBuilder("WIFI:");
         sb.append("T:").append(escapeWifi(type)).append(';');
         sb.append("S:").append(escapeWifi(ssid)).append(';');

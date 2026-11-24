@@ -9,13 +9,15 @@ public class PayloadsTest {
 
     @Test
     public void wifiEscapesDelimiters() {
-        assertEquals("WIFI:T:WPA;S:My;Net;P:pa:ss;H:true;;",
+        assertEquals("WIFI:T:WPA;S:My\\;Net;P:pa\\:ss;H:true;;",
                 Payloads.wifi("My;Net", "pa:ss", "WPA", true));
     }
 
     @Test
     public void wifiOmitsAnEmptyPassword() {
         assertEquals("WIFI:T:nopass;S:Guest;;", Payloads.wifi("Guest", "", "nopass", false));
+        assertEquals("WIFI:T:WPA;S:Office;P:secret;;",
+                Payloads.wifi("Office", "secret", "wpa", false));
     }
 
     @Test

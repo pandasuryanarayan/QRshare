@@ -81,7 +81,16 @@ jobs:
           echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
 
       - name: Unit tests
-        run: ./gradlew --no-daemon --stacktrace testReleaseUnitTest
+        run: |
+          if ./gradlew --no-daemon --stacktrace test; then
+            echo "Unit tests passed."
+          else
+            echo "::group::Available test tasks"
+            ./gradlew --no-daemon :app:tasks --all 2>/dev/null | grep -i test || true
+            echo "::endgroup::"
+            echo "::error::Unit tests failed."
+            exit 1
+          fi
 
       - name: Assemble release (R8 full mode, resource shrinking, signed)
         run: ./gradlew --no-daemon --stacktrace assembleRelease
